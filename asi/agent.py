@@ -340,10 +340,22 @@ class DemoAgent(Agent):
                         )
 
             try:
+                # Transform model name for litellm_proxy format
+                # e.g., "litellm/neulab/claude-3-5-sonnet-20241022" -> "litellm_proxy/neulab/claude-3-5-sonnet-20241022"
+                # e.g., "azure/gpt-4o" -> "litellm_proxy/azure/gpt-4o"
+                model_name = self.model_name
+                if model_name.startswith("litellm/"):
+                    model_name = "litellm_proxy/" + model_name[len("litellm/"):]
+                elif not model_name.startswith("litellm_proxy/"):
+                    # For models like "azure/gpt-4o" or "gpt-4o", add litellm_proxy prefix
+                    model_name = "litellm_proxy/" + model_name
+                
+                logger.info(f"Using model: {model_name}")
+                
                 response = litellm.completion(
                     api_key=os.environ.get("LITELLM_API_KEY"),
                     base_url=os.environ.get("LITELLM_BASE_URL", "https://cmu.litellm.ai"),
-                    model=self.model_name.replace("litellm", "openai"),
+                    model=model_name,
                     messages=[
                         {"role": "system", "content": system_msgs},
                         {"role": "user", "content": user_msgs},
@@ -352,7 +364,10 @@ class DemoAgent(Agent):
                 )
                 action = response.choices[0].message.content
                 action = action.replace('```python', '```')
-            except:
+            except Exception as e:
+                logger.error(f"LLM call failed: {e}")
+                import traceback
+                traceback.print_exc()
                 action = ""
         else:
             if self.num_actions > (len(self.actions) - 1):

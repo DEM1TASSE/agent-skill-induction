@@ -26,7 +26,14 @@ def parse_args():
         "--model_name",
         type=str,
         default="litellm/neulab/claude-3-5-sonnet-20241022",
-        choices=["litellm/neulab/claude-3-5-sonnet-20241022", "litellm/neulab/gpt-4o-2024-05-13", "litellm/neulab/claude-sonnet-4-20250514", "gpt-4o"],
+        choices=[
+            "litellm/neulab/claude-3-5-sonnet-20241022",
+            "litellm/neulab/gpt-4o-2024-05-13",
+            "litellm/neulab/claude-sonnet-4-20250514",
+            "litellm/neulab/claude-sonnet-4-5-20250929",
+            "azure/gpt-4o",
+            "gpt-4o",
+        ],
         help="OpenAI model name.",
     )
     parser.add_argument(
