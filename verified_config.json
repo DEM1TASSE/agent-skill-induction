@@ -1,0 +1,42 @@
+{
+  "environments": {
+    "__GITLAB__": {
+      "urls": ["http://ec2-18-223-172-69.us-east-2.compute.amazonaws.com:8023"],
+      "credentials": {
+        "username": "byteblaze",
+        "password": "hello1234"
+      }
+    },
+    "__SHOPPING__": {
+      "urls": ["http://ec2-18-223-172-69.us-east-2.compute.amazonaws.com:7770"],
+      "credentials": {
+        "username": "emma.lopez@gmail.com",
+        "password": "Password.123"
+      }
+    },
+    "__SHOPPING_ADMIN__": {
+      "urls": ["http://ec2-18-223-172-69.us-east-2.compute.amazonaws.com:7780/admin"],
+      "use_header_login": true,
+      "credentials": {
+        "username": "admin",
+        "password": "admin1234"
+      }
+    },
+    "__REDDIT__": {
+      "urls": ["http://ec2-18-223-172-69.us-east-2.compute.amazonaws.com:9999"],
+      "credentials": {
+        "username": "MarvelsGrantMan136",
+        "password": "test1234"
+      }
+    },
+    "__WIKIPEDIA__": {
+      "urls": ["http://ec2-18-223-172-69.us-east-2.compute.amazonaws.com:8888/wikipedia_en_all_maxi_2022-05/A/User:The_other_Kiwix_guy/Landing"]
+    },
+    "__MAP__": {
+      "urls": ["http://ec2-18-223-172-69.us-east-2.compute.amazonaws.com:3000"]
+    },
+    "__HOMEPAGE__": {
+      "urls": ["http://ec2-18-223-172-69.us-east-2.compute.amazonaws.com:4399"]
+    }
+  }
+}

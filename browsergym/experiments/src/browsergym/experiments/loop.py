@@ -38,6 +38,7 @@ class EnvArgs(DataClassJsonMixin):
     max_steps: Optional[int] = None
     headless: bool = True
     record_video: bool = False
+    record_har: bool = False  # NEW: Enable HAR recording for network trace evaluation
     wait_for_user_message: bool = False
     viewport: Optional[dict] = None  # use default value from BrowserGym
     slow_mo: Optional[int] = None  # use default value from BrowserGym
@@ -46,6 +47,8 @@ class EnvArgs(DataClassJsonMixin):
 
     def make_env(self, action_mapping, exp_dir):
         extra_kwargs = {}
+        pw_context_kwargs = {}
+        
         if self.record_video:
             extra_kwargs["record_video_dir"] = exp_dir
         if self.viewport:
@@ -53,9 +56,19 @@ class EnvArgs(DataClassJsonMixin):
         if self.slow_mo is not None:
             extra_kwargs["slow_mo"] = self.slow_mo
         if self.storage_state:
-            extra_kwargs["pw_context_kwargs"] = {"storage_state": self.storage_state}
+            pw_context_kwargs["storage_state"] = self.storage_state
         if self.task_kwargs is not None:
             extra_kwargs["task_kwargs"] = self.task_kwargs
+        
+        # HAR recording for network trace evaluation (WebArena-Verified)
+        if self.record_har:
+            har_path = Path(exp_dir) / "network.har"
+            pw_context_kwargs["record_har_path"] = str(har_path)
+            pw_context_kwargs["record_har_omit_content"] = True  # Don't save response bodies
+            logger.info(f"HAR recording enabled, will save to: {har_path}")
+        
+        if pw_context_kwargs:
+            extra_kwargs["pw_context_kwargs"] = pw_context_kwargs
 
         return gym.make(
             _get_env_name(self.task_name),
