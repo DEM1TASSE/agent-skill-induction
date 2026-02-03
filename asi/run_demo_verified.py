@@ -78,20 +78,29 @@ def parse_args():
         help="Use screenshot in observation.",
     )
     parser.add_argument(
-        "--websites", type=str, nargs='+', default=[],
+        "--websites",
+        type=str,
+        nargs="+",
+        default=[],
         choices=["shopping", "admin", "reddit", "gitlab", "map"],
         help="Website(s) for action space.",
     )
     parser.add_argument(
-        "--max_steps", type=int, default=15,
+        "--max_steps",
+        type=int,
+        default=15,
         help="Maximum steps.",
     )
     parser.add_argument(
-        "--action_path", type=str, default=None,
+        "--action_path",
+        type=str,
+        default=None,
         help="Path to predefined actions.",
     )
     parser.add_argument(
-        "--memory_path", type=str, default=None,
+        "--memory_path",
+        type=str,
+        default=None,
         help="Path to workflow memory.",
     )
     parser.add_argument(
@@ -100,7 +109,8 @@ def parse_args():
         help="Directory where task outputs are written (default: results/verified).",
     )
     parser.add_argument(
-        "--headless", action="store_true",
+        "--headless",
+        action="store_true",
         help="Run headless.",
     )
 
@@ -112,33 +122,34 @@ def main():
 --- WebArena-Verified Agent ---
 Uses VerifiedWebArenaTask with integrated evaluation.
 """)
-    
+
     # Register webarena_verified tasks
     register_verified_tasks()
-    
+
     args = parse_args()
-    
+    os.environ["BROWSERGYM_RESULTS_ROOT"] = args.results
+
     # Extract task_id from task_name (e.g., "webarena_verified.401" -> 401)
     task_id = args.task_name.split(".")[-1]
-    
+
     # Results directory structure: results/verified/{task_id}/
     results_root = args.results
     task_output_dir = f"{results_root}/{task_id}"
     os.makedirs(task_output_dir, exist_ok=True)
-    
+
     print(f"Task: {args.task_name}")
     print(f"Results: {task_output_dir}")
-    
+
     # Load predefined actions if provided
     if args.action_path is not None and os.path.exists(args.action_path):
-        actions = open(args.action_path, 'r').read()
+        actions = open(args.action_path, "r").read()
         if actions.strip():
             actions = actions.splitlines()
         else:
             actions = []
     else:
         actions = []
-    
+
     # Agent config (same as run_demo.py)
     agent_args = DemoAgentArgs(
         model_name=args.model_name,
@@ -151,9 +162,9 @@ Uses VerifiedWebArenaTask with integrated evaluation.
         actions=tuple(actions),
         memory=args.memory_path,
     )
-    
+
     patch_with_custom_exec(agent_args)
-    
+
     # Environment config - enable HAR recording for network trace evaluation
     env_args = EnvArgs(
         task_name=args.task_name,
@@ -162,24 +173,26 @@ Uses VerifiedWebArenaTask with integrated evaluation.
         headless=args.headless,
         record_har=True,  # Enable HAR recording for WebArena-Verified evaluation
     )
-    
+
     # Experiment config
     exp_args = ExpArgs(
         env_args=env_args,
         agent_args=agent_args,
     )
-    
+
     # Run - use task output dir
     exp_args.prepare(task_output_dir)
+    os.environ["BROWSERGYM_EXP_DIR"] = str(exp_args.exp_dir)
+    env_args.task_kwargs = {"task_id": int(task_id), "exp_dir": str(exp_args.exp_dir)}
     exp_args.run()
-    
+
     # Print results
     exp_result = get_exp_result(exp_args.exp_dir)
     exp_record = exp_result.get_exp_record()
-    
+
     for key, val in exp_record.items():
         print(f"{key}: {val}")
-    
+
     print(f"\nResults saved to: {exp_args.exp_dir}")
 
 
