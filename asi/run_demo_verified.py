@@ -12,7 +12,9 @@ Usage:
 
 import os
 import argparse
+import ast
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -45,6 +47,7 @@ def parse_args():
             "litellm/neulab/gpt-4o-2024-05-13",
             "litellm/neulab/claude-sonnet-4-20250514",
             "litellm/neulab/claude-sonnet-4-5-20250929",
+            "litellm_proxy/neulab/claude-sonnet-4-20250514",
             "azure/gpt-4o",
             "gpt-4o",
         ],
@@ -162,20 +165,21 @@ Uses VerifiedWebArenaTask with integrated evaluation.
         use_axtree=args.use_axtree,
         use_screenshot=args.use_screenshot,
         websites=args.websites,
-        actions=tuple(actions),
+        actions=actions,
         memory=args.memory_path,
     )
 
     patch_with_custom_exec(agent_args)
 
     # Environment config - enable HAR recording for network trace evaluation
-    env_args = EnvArgs(
-        task_name=args.task_name,
-        task_seed=None,
-        max_steps=args.max_steps,
-        headless=args.headless,
-        record_har=True,  # Enable HAR recording for WebArena-Verified evaluation
-    )
+    env_kwargs = {
+        "task_name": args.task_name,
+        "task_seed": None,
+        "max_steps": args.max_steps,
+        "headless": args.headless,
+        "record_har": True,
+    }
+    env_args = EnvArgs(**env_kwargs)
 
     # Experiment config
     exp_args = ExpArgs(
@@ -192,26 +196,76 @@ Uses VerifiedWebArenaTask with integrated evaluation.
     # Post-hoc WebArena-Verified evaluation (HAR is available after context close)
     exp_dir = Path(exp_args.exp_dir)
     agent_response_path = exp_dir / "agent_response.json"
+    agent_response_ok = agent_response_path.exists()
     if not agent_response_path.exists():
-        cwd_response = Path("agent_response.json")
-        if cwd_response.exists():
-            shutil.copy2(cwd_response, agent_response_path)
-        else:
-            fallback = {
-                "task_type": "RETRIEVE",
-                "status": "UNKNOWN_ERROR",
-                "retrieved_data": None,
-                "error_details": "Agent did not create agent_response.json",
-            }
+        log_path = exp_dir / "experiment.log"
+        extracted = None
+        if log_path.exists():
+            text = log_path.read_text()
+            matches = re.findall(
+                r"save_agent_response\s*\(\s*(\{[\s\S]*?\})\s*\)", text
+            )
+            if matches:
+                raw = matches[-1]
+                try:
+                    extracted = json.loads(raw.replace("None", "null"))
+                except json.JSONDecodeError:
+                    try:
+                        extracted = ast.literal_eval(raw)
+                    except (SyntaxError, ValueError):
+                        extracted = None
+
+        agent_response_ok = False
+        if extracted is not None:
             with agent_response_path.open("w") as f:
-                json.dump(fallback, f, indent=2)
+                json.dump(extracted, f, indent=2)
+            agent_response_ok = True
+        else:
+            cwd_response = Path("agent_response.json")
+            if cwd_response.exists():
+                shutil.copy2(cwd_response, agent_response_path)
+                agent_response_ok = True
+            else:
+                fallback = {
+                    "task_type": "RETRIEVE",
+                    "status": "UNKNOWN_ERROR",
+                    "retrieved_data": None,
+                    "error_details": "No save_agent_response found in experiment.log",
+                }
+                with agent_response_path.open("w") as f:
+                    json.dump(fallback, f, indent=2)
+                agent_response_ok = False
 
-    from webarena_verified_utils import run_verified_evaluation
+    har_path = exp_dir / "network.har"
+    if not har_path.exists():
+        error_result = {
+            "task_id": int(task_id),
+            "score": 0.0,
+            "status": "error",
+            "error": "HAR file missing; skipping evaluation",
+        }
+        with (exp_dir / "eval_result.json").open("w") as f:
+            json.dump(error_result, f, indent=2)
+        result = error_result
+        print(f"Warning: HAR file not found at {har_path}; evaluation skipped")
+    elif not agent_response_ok:
+        error_result = {
+            "task_id": int(task_id),
+            "score": 0.0,
+            "status": "error",
+            "error": "Agent response missing; skipping evaluation",
+        }
+        with (exp_dir / "eval_result.json").open("w") as f:
+            json.dump(error_result, f, indent=2)
+        result = error_result
+        print("Warning: agent_response.json missing; evaluation skipped")
+    else:
+        from webarena_verified_utils import run_verified_evaluation
 
-    result = run_verified_evaluation(
-        task_id=int(task_id),
-        exp_dir=exp_dir,
-    )
+        result = run_verified_evaluation(
+            task_id=int(task_id),
+            exp_dir=exp_dir,
+        )
 
     # Print results
     exp_result = get_exp_result(exp_args.exp_dir)
