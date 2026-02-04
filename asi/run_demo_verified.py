@@ -12,6 +12,9 @@ Usage:
 
 import os
 import argparse
+import json
+import shutil
+from pathlib import Path
 
 from agent import DemoAgentArgs
 from patch_with_custom_exec import patch_with_custom_exec
@@ -186,12 +189,47 @@ Uses VerifiedWebArenaTask with integrated evaluation.
     env_args.task_kwargs = {"task_id": int(task_id), "exp_dir": str(exp_args.exp_dir)}
     exp_args.run()
 
+    # Post-hoc WebArena-Verified evaluation (HAR is available after context close)
+    exp_dir = Path(exp_args.exp_dir)
+    agent_response_path = exp_dir / "agent_response.json"
+    if not agent_response_path.exists():
+        cwd_response = Path("agent_response.json")
+        if cwd_response.exists():
+            shutil.copy2(cwd_response, agent_response_path)
+        else:
+            fallback = {
+                "task_type": "RETRIEVE",
+                "status": "UNKNOWN_ERROR",
+                "retrieved_data": None,
+                "error_details": "Agent did not create agent_response.json",
+            }
+            with agent_response_path.open("w") as f:
+                json.dump(fallback, f, indent=2)
+
+    from webarena_verified_utils import run_verified_evaluation
+
+    result = run_verified_evaluation(
+        task_id=int(task_id),
+        exp_dir=exp_dir,
+    )
+
     # Print results
     exp_result = get_exp_result(exp_args.exp_dir)
     exp_record = exp_result.get_exp_record()
 
     for key, val in exp_record.items():
         print(f"{key}: {val}")
+
+    print(f"\nEvaluation Result:")
+    print(f"  Task ID: {result.get('task_id', task_id)}")
+    print(f"  Score: {result.get('score', 'N/A')}")
+    print(f"  Status: {result.get('status', 'N/A')}")
+    if result.get("evaluators_results"):
+        print("  Evaluators:")
+        for er in result["evaluators_results"]:
+            print(
+                f"    - {er['evaluator_name']}: {er['status']} (score: {er['score']})"
+            )
 
     print(f"\nResults saved to: {exp_args.exp_dir}")
 
