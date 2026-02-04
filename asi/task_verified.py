@@ -270,6 +270,10 @@ Example: save_agent_response({{"task_type": "{task_type}", "status": "SUCCESS", 
                             har_path = candidate
                             break
 
+        if not har_path:
+            logger.info("HAR not available yet; skipping evaluation in validate")
+            return 0, True, "", {"status": "HAR_pending"}
+
         # Run WebArena-Verified evaluation
         try:
             score = self._run_verified_evaluation(agent_response, har_path=har_path)
@@ -302,97 +306,39 @@ Example: save_agent_response({{"task_type": "{task_type}", "status": "SUCCESS", 
 
         Args:
             agent_response: Agent's structured response dictionary
-            har_path: Optional path to HAR file. If not provided, uses dummy HAR.
+            har_path: Optional path to HAR file. Must exist for evaluation.
         """
         try:
             from webarena_verified.api import WebArenaVerified
-            import tempfile
 
             config = (
                 WEBARENA_VERIFIED_CONFIG if WEBARENA_VERIFIED_CONFIG.exists() else None
             )
             wa = WebArenaVerified(config=config)
 
-            # Check if we have a real HAR file
-            network_trace = None
-            temp_har_path = None
+            if not har_path or not har_path.exists():
+                raise ValueError("HAR file not available for evaluation")
 
-            if har_path and har_path.exists():
-                # Use provided HAR file
-                network_trace = har_path
-                logger.info(
-                    f"Using HAR file for evaluation: {har_path} ({har_path.stat().st_size:,} bytes)"
-                )
-            else:
-                # Create valid dummy HAR file with one entry
-                # webarena-verified requires at least one entry
-                logger.warning("No HAR file provided, using dummy HAR for evaluation")
-                dummy_har = {
-                    "log": {
-                        "version": "1.2",
-                        "creator": {"name": "Playwright", "version": "1.0.0"},
-                        "browser": {"name": "chromium", "version": "100.0.0"},
-                        "entries": [
-                            {
-                                "startedDateTime": "2025-01-01T00:00:00.000Z",
-                                "time": 0.1,
-                                "request": {
-                                    "method": "GET",
-                                    "url": "http://localhost/dummy",
-                                    "httpVersion": "HTTP/1.1",
-                                    "cookies": [],
-                                    "headers": [],
-                                    "queryString": [],
-                                    "headersSize": -1,
-                                    "bodySize": -1,
-                                },
-                                "response": {
-                                    "status": 200,
-                                    "statusText": "OK",
-                                    "httpVersion": "HTTP/1.1",
-                                    "cookies": [],
-                                    "headers": [],
-                                    "content": {"size": -1, "mimeType": "text/html"},
-                                    "headersSize": -1,
-                                    "bodySize": -1,
-                                    "redirectURL": "",
-                                },
-                                "cache": {},
-                                "timings": {"send": -1, "wait": -1, "receive": 0.1},
-                            }
-                        ],
-                    }
-                }
+            logger.info(
+                f"Using HAR file for evaluation: {har_path} ({har_path.stat().st_size:,} bytes)"
+            )
 
-                # Write dummy HAR to temp file
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".har", delete=False
-                ) as f:
-                    json.dump(dummy_har, f)
-                    temp_har_path = Path(f.name)
-                    network_trace = temp_har_path
+            result = wa.evaluate_task(
+                task_id=self.task_id,
+                agent_response=agent_response,
+                network_trace=har_path,
+            )
 
-            try:
-                result = wa.evaluate_task(
-                    task_id=self.task_id,
-                    agent_response=agent_response,
-                    network_trace=network_trace,
-                )
+            logger.info(
+                f"Evaluation result: score={result.score}, status={result.status}"
+            )
+            if result.evaluators_results:
+                for er in result.evaluators_results:
+                    logger.info(
+                        f"  - {er.evaluator_name}: {er.status} (score: {er.score})"
+                    )
 
-                logger.info(
-                    f"Evaluation result: score={result.score}, status={result.status}"
-                )
-                if result.evaluators_results:
-                    for er in result.evaluators_results:
-                        logger.info(
-                            f"  - {er.evaluator_name}: {er.status} (score: {er.score})"
-                        )
-
-                return result.score
-            finally:
-                # Clean up temp file only
-                if temp_har_path and temp_har_path.exists():
-                    temp_har_path.unlink()
+            return result.score
 
         except ImportError as e:
             logger.warning(
