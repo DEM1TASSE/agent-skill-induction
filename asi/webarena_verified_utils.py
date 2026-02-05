@@ -189,23 +189,28 @@ def _create_dummy_har(path: Path) -> None:
 
 def trim_har_file(har_org: Path, har_trimmed: Path) -> dict[str, Any]:
     """Trim HAR file to remove unnecessary data.
-    
-    Uses webarena-verified's trim_network_logs utility.
-    
+
+    Uses our custom trim_network_logs utility with postData.params conversion.
+
+    This is a modified version of webarena-verified's trim_network_logs that
+    additionally converts Playwright's postData.params arrays to text field
+    for evaluator compatibility.
+
     Args:
         har_org: Path to original HAR file
         har_trimmed: Path where to save trimmed HAR file
-        
+
     Returns:
-        Stats dictionary from trimming operation
+        Stats dictionary from trimming operation (includes 'postdata_converted' count)
     """
-    # Add webarena-verified to path if needed
+    # Add webarena-verified to path for network_event_utils dependency
     webarena_src = _WEBARENA_VERIFIED_DIR / "src"
     if str(webarena_src) not in sys.path:
         sys.path.insert(0, str(webarena_src))
-    
-    from webarena_verified.core.utils.trim_network_logs import trim_har_file as _trim
-    
+
+    # Use our local modified version with params-to-text conversion
+    from trim_network_logs import trim_har_file as _trim
+
     return _trim(har_org, har_trimmed)
 
 

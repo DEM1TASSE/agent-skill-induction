@@ -11,6 +11,15 @@ Usage:
 """
 
 import os
+import sys
+from pathlib import Path
+
+# Use local browsergym (with record_har support) instead of installed package
+_ASI_ROOT = Path(__file__).parent
+_BROWSERGYM_SRC = _ASI_ROOT.parent / "browsergym" / "experiments" / "src"
+if _BROWSERGYM_SRC.exists():
+    sys.path.insert(0, str(_BROWSERGYM_SRC))
+
 import argparse
 import ast
 import json

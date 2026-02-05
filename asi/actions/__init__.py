@@ -19,7 +19,8 @@ from browsergym.core.action.functions import (
 
 # %% Import Induced Actions
 
-from actions import shopping, admin, reddit, map, gitlab
+from actions import shopping, admin, reddit, map, gitlab, verified
+from actions.verified import save_agent_response
 
 def get_functions(module, prefix='actions.') -> list:
     functions = []
@@ -37,7 +38,7 @@ ACTION_DICT = {
     "webarena": [
         click, hover, fill, keyboard_press, scroll, tab_focus, new_tab, 
         tab_close, go_back, go_forward, goto, send_msg_to_user, report_infeasible,
-        select_option,
+        select_option, save_agent_response,
     ],
     "shopping": get_functions(shopping),
     "admin": get_functions(admin),
